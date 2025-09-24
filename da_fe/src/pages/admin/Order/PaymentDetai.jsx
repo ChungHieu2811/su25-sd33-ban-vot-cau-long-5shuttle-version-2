@@ -19,6 +19,8 @@ const PaymentDetails = ({
     items = null,
     // Optional: tổng tiền hoàn hàng
     totalReturnAmount = 0,
+    // Optional: voucher info for better display
+    voucherInfo = null,
 }) => {
     // Local state for inputs so we don't overwrite parent values
     const [localDiscountCode, setLocalDiscountCode] = useState(discountCode || '');
@@ -120,33 +122,40 @@ const PaymentDetails = ({
                                                     if (typeof setDiscountCode === 'function')
                                                         setDiscountCode(e.target.value);
                                                 }}
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 text-sm"
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 text-sm bg-gray-100 cursor-not-allowed"
                                                 placeholder="Nhập mã"
+                                                disabled
                                             />
                                         </div>
 
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                                                Giảm giá (%):
+                                                Giá trị giảm:
                                             </label>
                                             <div className="relative">
                                                 <input
-                                                    type="number"
-                                                    value={localDiscountPercent}
-                                                    onChange={(e) => {
-                                                        const val = Math.max(0, Math.min(100, Number(e.target.value)));
-                                                        setLocalDiscountPercent(val);
-                                                        if (typeof setDiscountPercent === 'function')
-                                                            setDiscountPercent(val);
-                                                    }}
-                                                    className="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 text-sm"
+                                                    type="text"
+                                                    value={(() => {
+                                                        if (voucherInfo && voucherInfo.kieuGiaTri !== undefined) {
+                                                            // Hiển thị theo kiểu voucher
+                                                            return voucherInfo.kieuGiaTri === 0 
+                                                                ? `${voucherInfo.giaTri}%`
+                                                                : `${Number(voucherInfo.giaTri)?.toLocaleString()}đ`;
+                                                        }
+                                                        // Nếu discountAmount > 0 và có discountPercent thì hiển thị %
+                                                        if (localDiscountPercent > 0) {
+                                                            return `${localDiscountPercent}%`;
+                                                        }
+                                                        // Nếu discountAmount > 0 nhưng không có % thì là tiền cố định
+                                                        if (Number(discountAmount) > 0) {
+                                                            return `${Number(discountAmount).toLocaleString()}đ`;
+                                                        }
+                                                        return '0';
+                                                    })()}
+                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 text-sm bg-gray-100 cursor-not-allowed"
                                                     placeholder="0"
-                                                    min="0"
-                                                    max="100"
+                                                    disabled
                                                 />
-                                                <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
-                                                    %
-                                                </span>
                                             </div>
                                         </div>
                                     </div>

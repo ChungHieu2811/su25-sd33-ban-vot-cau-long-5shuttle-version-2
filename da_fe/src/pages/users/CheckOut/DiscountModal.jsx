@@ -8,17 +8,34 @@ const DiscountModal = ({ showModal, setShowModal, discounts, selectedDiscount, h
     // Tính toán số tiền tiết kiệm cho mỗi voucher
     const calculateSavings = (discount) => {
         if (totalPrice < discount.dieuKienNhoNhat) return 0;
-        let savings = (totalPrice * discount.giaTri) / 100;
-        return Math.min(savings, discount.giaTriMax);
+        
+        let savings;
+        if (discount.kieuGiaTri === 0) {
+            // Giảm theo phần trăm
+            savings = (totalPrice * discount.giaTri) / 100;
+            return Math.min(savings, discount.giaTriMax);
+        } else {
+            // Giảm theo số tiền cố định
+            savings = discount.giaTri;
+        }
+        return savings;
     };
 
     // Kiểm tra voucher có thể áp dụng không
     const isVoucherApplicable = (discount) => {
-        return totalPrice >= discount.dieuKienNhoNhat;
+        return totalPrice >= discount.dieuKienNhoNhat && discount.soLuong > 0;
     };
+
+    // Kiểm tra voucher còn số lượng không
+    const isVoucherInStock = (discount) => {
+        return discount.soLuong > 0;
+    };
+
+console.log('Selected Discount:', discounts);
 
     // Sắp xếp voucher theo mức tiết kiệm giảm dần
     const sortedDiscounts = [...discounts].sort((a, b) => calculateSavings(b) - calculateSavings(a));
+    
 
     return (
         <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
@@ -146,7 +163,10 @@ const DiscountModal = ({ showModal, setShowModal, discounts, selectedDiscount, h
                                                 <span className={`text-2xl font-bold ${
                                                     applicable ? 'text-red-600' : 'text-gray-400'
                                                 }`}>
-                                                    {discount.giaTri}%
+                                                    {discount.kieuGiaTri === 0 
+                                                        ? `${discount.giaTri}%`
+                                                        : `${discount.giaTri?.toLocaleString()}đ`
+                                                    }
                                                 </span>
                                                 <span className="text-gray-500 text-sm">giảm giá</span>
                                             </div>
@@ -168,8 +188,21 @@ const DiscountModal = ({ showModal, setShowModal, discounts, selectedDiscount, h
                                             
                                             <div className="flex items-center gap-2">
                                                 <Gift className="w-4 h-4 text-gray-400" />
-                                                <span>Giảm tối đa: <strong>{discount.giaTriMax.toLocaleString('vi-VN')}đ</strong></span>
+                                                <span>Số lượng còn lại: 
+                                                    <strong className={discount.soLuong <= 5 && discount.soLuong > 0 ? 'text-orange-600' : discount.soLuong === 0 ? 'text-red-600' : 'text-gray-800'}>
+                                                        {discount.soLuong}
+                                                    </strong>
+                                                    {discount.soLuong === 0 && <span className="text-red-600 font-medium"> (Hết hàng)</span>}
+                                                    {discount.soLuong > 0 && discount.soLuong <= 5 && <span className="text-orange-600"> (Sắp hết)</span>}
+                                                </span>
                                             </div>
+                                            
+                                            {discount.kieuGiaTri === 0 && (
+                                                <div className="flex items-center gap-2">
+                                                    <Gift className="w-4 h-4 text-gray-400" />
+                                                    <span>Giảm tối đa: <strong>{discount.giaTriMax.toLocaleString('vi-VN')}đ</strong></span>
+                                                </div>
+                                            )}
 
                                             <div className="flex items-center gap-2">
                                                 <Calendar className="w-4 h-4 text-gray-400" />
@@ -184,6 +217,14 @@ const DiscountModal = ({ showModal, setShowModal, discounts, selectedDiscount, h
                                         {!isSelected && (
                                             <button
                                                 onClick={() => {
+                                                    if (discount.soLuong === 0) {
+                                                        swal('Voucher hết hàng', 
+                                                            'Voucher này đã hết số lượng, vui lòng chọn voucher khác', 
+                                                            'error'
+                                                        );
+                                                        return;
+                                                    }
+                                                    
                                                     if (!applicable) {
                                                         swal('Không đủ điều kiện', 
                                                             `Đơn hàng cần tối thiểu ${discount.dieuKienNhoNhat.toLocaleString('vi-VN')}đ để áp dụng voucher này`, 
@@ -192,11 +233,22 @@ const DiscountModal = ({ showModal, setShowModal, discounts, selectedDiscount, h
                                                         return;
                                                     }
 
-                                                    let discountAmount = (totalPrice * discount.giaTri) / 100;
-                                                    if (discountAmount > discount.giaTriMax) {
-                                                        discountAmount = discount.giaTriMax;
+                                                    let discountAmount;
+                                                    if (discount.kieuGiaTri === 0) {
+                                                        // Giảm theo phần trăm
+                                                        discountAmount = (totalPrice * discount.giaTri) / 100;
+                                                        if (discountAmount > discount.giaTriMax) {
+                                                            discountAmount = discount.giaTriMax;
+                                                            swal('Áp dụng thành công!', 
+                                                                `Bạn được giảm ${discount.giaTriMax.toLocaleString('vi-VN')}đ (giá trị tối đa)`, 
+                                                                'success'
+                                                            );
+                                                        }
+                                                    } else {
+                                                        // Giảm theo số tiền cố định
+                                                        discountAmount = discount.giaTri;
                                                         swal('Áp dụng thành công!', 
-                                                            `Bạn được giảm ${discount.giaTriMax.toLocaleString('vi-VN')}đ (giá trị tối đa)`, 
+                                                            `Bạn được giảm ${discount.giaTri.toLocaleString('vi-VN')}đ`, 
                                                             'success'
                                                         );
                                                     }
@@ -205,17 +257,29 @@ const DiscountModal = ({ showModal, setShowModal, discounts, selectedDiscount, h
                                                 }}
                                                 disabled={!applicable}
                                                 className={`w-full py-2.5 px-4 rounded-lg font-medium transition-colors text-sm ${
-                                                    applicable
+                                                    applicable && discount.soLuong > 0
                                                         ? 'bg-blue-600 hover:bg-blue-700 text-white'
                                                         : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                                                 }`}
                                             >
-                                                {applicable ? 'Áp dụng voucher' : 'Không đủ điều kiện'}
+                                                {discount.soLuong === 0 
+                                                    ? 'Hết hàng' 
+                                                    : applicable 
+                                                        ? 'Áp dụng voucher' 
+                                                        : 'Không đủ điều kiện'
+                                                }
                                             </button>
                                         )}
 
                                         {/* Warning */}
-                                        {!applicable && (
+                                        {discount.soLuong === 0 && (
+                                            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+                                                <X className="w-4 h-4 inline mr-1" />
+                                                Voucher này đã hết số lượng
+                                            </div>
+                                        )}
+                                        
+                                        {!applicable && discount.soLuong > 0 && (
                                             <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-700">
                                                 <Clock className="w-4 h-4 inline mr-1" />
                                                 Cần mua thêm {(discount.dieuKienNhoNhat - totalPrice).toLocaleString('vi-VN')}đ

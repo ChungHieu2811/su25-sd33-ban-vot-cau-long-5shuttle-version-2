@@ -11,6 +11,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.http.HttpStatus;
 
 import java.text.ParseException;
 import java.time.LocalDateTime;
@@ -106,6 +107,29 @@ public class PhieuGiamGiaController {
         response.put("size", pageResult.getSize());
 
         return response;
+    }
+    
+    @GetMapping("/check-availability/{id}")
+    public ResponseEntity<?> checkVoucherAvailability(@PathVariable Integer id) {
+        try {
+            PhieuGiamGiaResponse voucher = phieuGiamGiaService.getPhieuGiamGiaById(id);
+            
+            Map<String, Object> availability = new HashMap<>();
+            availability.put("id", voucher.getId());
+            availability.put("ma", voucher.getMa());
+            availability.put("ten", voucher.getTen());
+            availability.put("soLuong", voucher.getSoLuong());
+            availability.put("isAvailable", voucher.getSoLuong() > 0);
+            availability.put("isValid", 
+                voucher.getNgayBatDau().isBefore(LocalDateTime.now()) && 
+                voucher.getNgayKetThuc().isAfter(LocalDateTime.now()) &&
+                voucher.getTrangThai() == 1
+            );
+            
+            return ResponseEntity.ok(availability);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Không tìm thấy phiếu giảm giá");
+        }
     }
 
 }

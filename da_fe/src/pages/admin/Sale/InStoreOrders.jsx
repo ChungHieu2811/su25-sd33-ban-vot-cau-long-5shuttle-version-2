@@ -649,20 +649,25 @@ function InStoreOrders() {
                                                         </div>
                                                         <div>
                                                             <span className="font-medium text-gray-600">
-                                                                Phần trăm giảm:
+                                                                Giá trị giảm:
                                                             </span>
                                                             <span className="ml-2 text-green-600 font-medium">
-                                                                {orderDetails.voucher.giaTri}%
+                                                                {orderDetails.voucher.kieuGiaTri === 0 
+                                                                    ? `${orderDetails.voucher.giaTri}%`
+                                                                    : `${orderDetails.voucher.giaTri?.toLocaleString()} VNĐ`
+                                                                }
                                                             </span>
                                                         </div>
-                                                        <div>
-                                                            <span className="font-medium text-gray-600">
-                                                                Giảm tối đa:
-                                                            </span>
-                                                            <span className="ml-2 text-gray-800">
-                                                                {orderDetails.voucher.giaTriMax?.toLocaleString()} VNĐ
-                                                            </span>
-                                                        </div>
+                                                        {orderDetails.voucher.kieuGiaTri === 0 && (
+                                                            <div>
+                                                                <span className="font-medium text-gray-600">
+                                                                    Giảm tối đa:
+                                                                </span>
+                                                                <span className="ml-2 text-gray-800">
+                                                                    {orderDetails.voucher.giaTriMax?.toLocaleString()} VNĐ
+                                                                </span>
+                                                            </div>
+                                                        )}
                                                         {orderDetails.giaGiam && orderDetails.giaGiam > 0 && (
                                                             <div className="md:col-span-2">
                                                                 <span className="font-medium text-gray-600">

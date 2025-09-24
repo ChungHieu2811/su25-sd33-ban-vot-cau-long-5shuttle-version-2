@@ -434,10 +434,19 @@ function OrderStatus() {
     function validateDiscount(subtotal, voucher) {
         if (!voucher) return 0;
         if (subtotal < (voucher.dieuKienNhoNhat || 0)) return 0;
-        let discountAmount = (subtotal * (voucher.giaTri || 0)) / 100;
-        if (voucher.giaTriMax && discountAmount > voucher.giaTriMax) {
-            discountAmount = voucher.giaTriMax;
+        
+        let discountAmount;
+        if (voucher.kieuGiaTri === 0) {
+            // Giảm theo phần trăm
+            discountAmount = (subtotal * (voucher.giaTri || 0)) / 100;
+            if (voucher.giaTriMax && discountAmount > voucher.giaTriMax) {
+                discountAmount = voucher.giaTriMax;
+            }
+        } else {
+            // Giảm theo số tiền cố định
+            discountAmount = voucher.giaTri || 0;
         }
+        
         return discountAmount;
     }
 
@@ -1828,6 +1837,7 @@ function OrderStatus() {
                 shippingFee={shippingFee}
                 items={orderDetailDatas}
                 totalReturnAmount={totalReturnAmount}
+                voucherInfo={orderData?.voucher}
             />
             <PaymentModal
                 isOpen={isModalOpen}

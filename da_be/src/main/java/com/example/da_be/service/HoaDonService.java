@@ -184,10 +184,34 @@ public class HoaDonService {
             PhieuGiamGia voucher = voucherRepository.findById(idVoucher)
                     .orElseThrow(() -> new ResourceNotFoundException("Voucher không tồn tại"));
 
-            // Thực hiện áp dụng voucher (tuỳ logic giảm giá của bạn)
-            // Ví dụ: tongTien = tongTien - voucher.getGiaTri();
-            hoaDon.setVoucher(voucher);
+            // Kiểm tra voucher còn số lượng không
+            if (voucher.getSoLuong() <= 0) {
+                throw new IllegalArgumentException("Phiếu giảm giá đã hết số lượng");
+            }
 
+            // Kiểm tra voucher còn hiệu lực không
+            LocalDateTime now = LocalDateTime.now();
+            if (now.isBefore(voucher.getNgayBatDau()) || now.isAfter(voucher.getNgayKetThuc())) {
+                throw new IllegalArgumentException("Phiếu giảm giá đã hết hạn hoặc chưa có hiệu lực");
+            }
+
+            // Kiểm tra điều kiện tối thiểu
+            if (tongTien.compareTo(BigDecimal.valueOf(voucher.getDieuKienNhoNhat())) < 0) {
+                throw new IllegalArgumentException("Đơn hàng chưa đủ điều kiện áp dụng phiếu giảm giá");
+            }
+
+            // Trừ số lượng voucher
+            voucher.setSoLuong(voucher.getSoLuong() - 1);
+            
+            // Nếu hết voucher thì cập nhật trạng thái
+            if (voucher.getSoLuong() == 0) {
+                voucher.setTrangThai(0); // 0 = Hết hàng/Không hoạt động
+            }
+            
+            // Lưu voucher đã được cập nhật
+            voucherRepository.save(voucher);
+
+            hoaDon.setVoucher(voucher);
         }
 
         // 4. Cập nhật thông tin hóa đơn

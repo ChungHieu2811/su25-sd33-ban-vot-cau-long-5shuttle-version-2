@@ -43,10 +43,17 @@ const PaymentSummary = ({ total, selectedBill, setSelectedBill, updateBills, sel
             }
 
             // Tính lại giảm giá theo total mới
-            let discountAmount = (total * selectedDiscount.giaTri) / 100;
-            const isMaxDiscount = discountAmount > selectedDiscount.giaTriMax;
-            if (isMaxDiscount) {
-                discountAmount = selectedDiscount.giaTriMax;
+            let discountAmount;
+            if (selectedDiscount.kieuGiaTri === 0) {
+                // Giảm theo phần trăm
+                discountAmount = (total * selectedDiscount.giaTri) / 100;
+                const isMaxDiscount = discountAmount > selectedDiscount.giaTriMax;
+                if (isMaxDiscount) {
+                    discountAmount = selectedDiscount.giaTriMax;
+                }
+            } else {
+                // Giảm theo số tiền cố định
+                discountAmount = selectedDiscount.giaTri;
             }
             setPromoDiscount(discountAmount);
         } else if (!selectedDiscount) {
@@ -58,17 +65,68 @@ const PaymentSummary = ({ total, selectedBill, setSelectedBill, updateBills, sel
         try {
             const response = await axios.get('http://localhost:8080/api/phieu-giam-gia/hien-thi');
             setDiscounts(response.data);
+            
+            // Kiểm tra nếu phiếu giảm giá hiện tại đã hết số lượng
+            if (selectedDiscount) {
+                const updatedDiscount = response.data.find(d => d.id === selectedDiscount.id);
+                if (!updatedDiscount || updatedDiscount.soLuong <= 0) {
+                    // Tự động bỏ chọn nếu hết hàng
+                    setSelectedDiscount(null);
+                    setPromoDiscount(0);
+                    
+                    if (!updatedDiscount || updatedDiscount.soLuong <= 0) {
+                        Swal.fire(
+                            'Thông báo',
+                            'Phiếu giảm giá đã được bỏ chọn do hết số lượng',
+                            'warning',
+                        );
+                    }
+                }
+            }
         } catch (error) {
             console.error('Lỗi khi lấy phiếu giảm giá:', error);
         }
     };
 
     const handleSelectDiscount = (discount) => {
+        // Kiểm tra số lượng phiếu giảm giá
+        if (discount.soLuong <= 0) {
+            Swal.fire(
+                'Lỗi',
+                'Phiếu giảm giá đã hết số lượng',
+                'error',
+            );
+            return;
+        }
+
         // Kiểm tra điều kiện tối thiểu
         if (total < discount.dieuKienNhoNhat) {
             Swal.fire(
                 'Lỗi',
                 `Đơn hàng phải có tổng giá trị từ ${discount.dieuKienNhoNhat.toLocaleString()} VNĐ`,
+                'error',
+            );
+            return;
+        }
+
+        // Kiểm tra thời hạn hiệu lực
+        const now = new Date();
+        const startDate = new Date(discount.ngayBatDau);
+        const endDate = new Date(discount.ngayKetThuc);
+        
+        if (now < startDate) {
+            Swal.fire(
+                'Lỗi',
+                'Phiếu giảm giá chưa có hiệu lực',
+                'error',
+            );
+            return;
+        }
+        
+        if (now > endDate) {
+            Swal.fire(
+                'Lỗi',
+                'Phiếu giảm giá đã hết hạn',
                 'error',
             );
             return;
@@ -163,18 +221,64 @@ const PaymentSummary = ({ total, selectedBill, setSelectedBill, updateBills, sel
             // Refresh danh sách hóa đơn và clear selection
             try {
                 await updateBills();
+                await fetchDiscounts(); // Refresh danh sách phiếu giảm giá để cập nhật số lượng
             } catch (err) {
-                console.error('Lỗi khi refresh danh sách hóa đơn:', err);
+                console.error('Lỗi khi refresh danh sách hóa đơn hoặc phiếu giảm giá:', err);
             }
 
             setSelectedBill(null);
+            setSelectedDiscount(null); // Clear selected discount
+            setPromoDiscount(0); // Reset discount
             setCustomerMoney(0);
         } catch (error) {
-            Swal.fire({
-                icon: 'error',
-                title: 'Lỗi',
-                text: error.response?.data?.message || 'Có lỗi xảy ra khi thanh toán',
-            });
+            console.error('Lỗi thanh toán:', error);
+            
+            // Xử lý các lỗi cụ thể
+            if (error.response?.status === 400) {
+                const errorMessage = error.response.data;
+                
+                if (errorMessage.includes('hết số lượng')) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Phiếu giảm giá hết số lượng',
+                        text: 'Phiếu giảm giá đã hết số lượng. Vui lòng bỏ chọn và thử lại.',
+                    });
+                    // Tự động bỏ chọn phiếu giảm giá
+                    setSelectedDiscount(null);
+                    setPromoDiscount(0);
+                    // Refresh danh sách phiếu giảm giá
+                    fetchDiscounts();
+                } else if (errorMessage.includes('hết hạn') || errorMessage.includes('hiệu lực')) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Phiếu giảm giá không hợp lệ',
+                        text: 'Phiếu giảm giá đã hết hạn hoặc chưa có hiệu lực.',
+                    });
+                    setSelectedDiscount(null);
+                    setPromoDiscount(0);
+                    fetchDiscounts();
+                } else if (errorMessage.includes('điều kiện')) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Không đủ điều kiện',
+                        text: 'Đơn hàng không đủ điều kiện áp dụng phiếu giảm giá.',
+                    });
+                    setSelectedDiscount(null);
+                    setPromoDiscount(0);
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Lỗi',
+                        text: errorMessage,
+                    });
+                }
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Lỗi',
+                    text: error.response?.data?.message || 'Có lỗi xảy ra khi thanh toán',
+                });
+            }
         }
     };
 
@@ -184,13 +288,6 @@ const PaymentSummary = ({ total, selectedBill, setSelectedBill, updateBills, sel
                 <div className="flex h-full">
                     {/* Customer Section */}
                     <div className="flex-1 p-6 border-r border-gray-200">
-                        <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-lg font-semibold text-gray-800">Khách hàng</h3>
-                            {/* <button className="text-[#2f19ae] text-sm border border-[#2f19ae] px-3 py-1 rounded hover:bg-purple-50 transition-colors">
-                                CHỌN KHÁCH HÀNG
-                            </button> */}
-                        </div>
-
                         {/* Discount Section */}
                         <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-5 border border-blue-100">
                             <div className="flex items-center justify-between mb-4">
@@ -229,13 +326,23 @@ const PaymentSummary = ({ total, selectedBill, setSelectedBill, updateBills, sel
                                             <div>
                                                 <p className="font-medium text-gray-800">{selectedDiscount.ten}</p>
                                                 <p className="text-sm text-gray-600">Mã: {selectedDiscount.ma}</p>
+                                                {selectedDiscount.soLuong <= 5 && selectedDiscount.soLuong > 0 && (
+                                                    <p className="text-sm text-orange-600 font-medium">
+                                                        ⚠️ Chỉ còn {selectedDiscount.soLuong} phiếu
+                                                    </p>
+                                                )}
                                             </div>
                                         </div>
                                         <div className="text-right">
                                             <p className="text-lg font-bold text-green-600">
                                                 -{promoDiscount.toLocaleString()} VNĐ
                                             </p>
-                                            <p className="text-sm text-gray-500">{selectedDiscount.giaTri}% giảm</p>
+                                            <p className="text-sm text-gray-500">
+                                                {selectedDiscount.kieuGiaTri === 0 
+                                                    ? `${selectedDiscount.giaTri}% giảm`
+                                                    : `${selectedDiscount.giaTri?.toLocaleString()} VNĐ giảm`
+                                                }
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
